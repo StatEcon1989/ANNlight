@@ -1,0 +1,22 @@
+Package: ANNlight
+Type: Package
+Title: A Lightweight, low dependency R-package for artificial neural networks
+Version: 0.1
+Date: 2022-08-01
+Authors@R:
+    person(given = "Steffen", family = "Köhler", email = "steffen.koehler@rub.de", role = c("aut", "cre"))
+Maintainer: Steffen Köhler <steffen.koehler@rub.de>
+Description: Providing basic functionality of a neural net, without having to worry about a large
+    number of dependencies. In fact, the aim is for 'R6' to stay the only dependency, because the code is written object-oriented.
+License: GPL (>= 3)
+URL: https://github.com/StatEcon1989/ANNlight
+BugReports: https://github.com/StatEcon1989/ANNlight/issues
+Imports: 
+    R6 (>= 2.5)
+RoxygenNote: 7.1.2
+Suggests: 
+    testthat (>= 3.1.0)
+Encoding: UTF-8
+Config/testthat/edition: 3
+Config/testthat/parallel: true
+Roxygen: list(markdown = TRUE)
