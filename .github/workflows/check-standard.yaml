@@ -1,10 +1,10 @@
-# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Workflow derived from https://github.com/r-lib/actions/tree/master/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 on:
   push:
-    branches: [main, master, v2-branch]
+    branches: [main, master]
   pull_request:
-    branches: [main, master, v2-branch]
+    branches: [main, master]
 
 name: R-CMD-check
 
@@ -31,19 +31,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: ./setup-pandoc
+      - uses: r-lib/actions/setup-pandoc@v1
 
-      - uses: ./setup-r
+      - uses: r-lib/actions/setup-r@v1
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
-      - uses: ./setup-r-dependencies
+      - uses: r-lib/actions/setup-r-dependencies@v1
         with:
-          extra-packages: any::rcmdcheck
-          needs: check
+          extra-packages: rcmdcheck
 
-      - uses: ./check-r-package
-        with:
-          upload-snapshots: true
+      - uses: r-lib/actions/check-r-package@v1
