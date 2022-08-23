@@ -3,5 +3,5 @@
 ^LICENSE\.md$
 ^\.idea$
 ^scripts$
-
+^_snaps$
 ^\.github$
