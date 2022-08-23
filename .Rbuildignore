@@ -5,3 +5,4 @@
 ^scripts$
 ^_snaps$
 ^\.github$
+^codecov\.yml$
