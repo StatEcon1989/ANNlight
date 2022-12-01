@@ -12,12 +12,14 @@ One layer is not able to function on its own (aside from the input layer), the c
 \subsection{Public methods}{
 \itemize{
 \item \href{#method-new}{\code{Layer$new()}}
-\item \href{#method-calc_layer}{\code{Layer$calc_layer()}}
-\item \href{#method-calc_derivative}{\code{Layer$calc_derivative()}}
+\item \href{#method-forward_pass}{\code{Layer$forward_pass()}}
+\item \href{#method-backward_pass}{\code{Layer$backward_pass()}}
+\item \href{#method-get_derivatives}{\code{Layer$get_derivatives()}}
 \item \href{#method-get_number_of_nodes}{\code{Layer$get_number_of_nodes()}}
-\item \href{#method-get_weights}{\code{Layer$get_weights()}}
-\item \href{#method-set_weights}{\code{Layer$set_weights()}}
+\item \href{#method-get_params}{\code{Layer$get_params()}}
+\item \href{#method-set_params}{\code{Layer$set_params()}}
 \item \href{#method-set_input}{\code{Layer$set_input()}}
+\item \href{#method-update_params}{\code{Layer$update_params()}}
 \item \href{#method-clone}{\code{Layer$clone()}}
 }
 }
@@ -31,7 +33,7 @@ Initialize a new layer
   number_of_nodes,
   activation_fun,
   prior_layer = NULL,
-  input_data = NULL,
+  a_prev = NULL,
   random_init = NULL
 )}\if{html}{\out{</div>}}
 }
@@ -45,9 +47,10 @@ Initialize a new layer
 
 \item{\code{prior_layer}}{\code{Layer} in case of a hidden or output layer, the previous layer.}
 
-\item{\code{input_data}}{\verb{matrix<numeric>} in case of the layer being the input layer, a\code{matrix} with numeric entries that contains the input_data.}
+\item{\code{a_prev}}{\verb{matrix<numeric>} in case of the layer being the input layer, a\code{matrix} with numeric entries that contains the input_data.}
 
-\item{\code{random_init}}{\code{integer}: Initializes all weights and biases with this value. If \code{NULL} assigns random values between -0.1 and 0.1.}
+\item{\code{random_init}}{\verb{list<matrix/vector>}: If \code{NULL} initializesthe weights with random N(0, 0.01) values and the bias with zeros.
+If a list with elements \code{weights} and \code{bias} (correct dimensions) is given, uses those values for initialization.}
 }
 \if{html}{\out{</div>}}
 }
@@ -68,12 +71,12 @@ Denote \code{a}the output of the activation function and \code{z} its input. Cur
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-calc_layer"></a>}}
-\if{latex}{\out{\hypertarget{method-calc_layer}{}}}
-\subsection{Method \code{calc_layer()}}{
+\if{html}{\out{<a id="method-forward_pass"></a>}}
+\if{latex}{\out{\hypertarget{method-forward_pass}{}}}
+\subsection{Method \code{forward_pass()}}{
 Calculate the output of the current layer
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Layer$calc_layer()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Layer$forward_pass()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
@@ -81,19 +84,18 @@ Calculate the output of the current layer
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-calc_derivative"></a>}}
-\if{latex}{\out{\hypertarget{method-calc_derivative}{}}}
-\subsection{Method \code{calc_derivative()}}{
+\if{html}{\out{<a id="method-backward_pass"></a>}}
+\if{latex}{\out{\hypertarget{method-backward_pass}{}}}
+\subsection{Method \code{backward_pass()}}{
 Calculate the derivative of the current layer wrt to its weights.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Layer$calc_derivative(w_times_delta = 1)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Layer$backward_pass(da = 1)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{w_times_delta}}{\verb{matrix<numeric>} either an output of the \code{calc_derivative()} method of the next layer, or the
-gradient of the cost function (if the current layer is the output layer).}
+\item{\code{da}}{\verb{matrix<numeric>}: derivative of the cost function wrt the activations of the next layer..}
 }
 \if{html}{\out{</div>}}
 }
@@ -103,6 +105,19 @@ gradient of the cost function (if the current layer is the output layer).}
 \item \code{derivative}: The derivative for the weighting matrix.
 \item \code{w_times_delta}: A matrix product needed for the calculation of the previous layer.
 }
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-get_derivatives"></a>}}
+\if{latex}{\out{\hypertarget{method-get_derivatives}{}}}
+\subsection{Method \code{get_derivatives()}}{
+Get all cached derivatives.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Layer$get_derivatives()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{list} of derivatives.
 }
 }
 \if{html}{\out{<hr>}}
@@ -119,12 +134,12 @@ Get the number of nodes of the layer.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-get_weights"></a>}}
-\if{latex}{\out{\hypertarget{method-get_weights}{}}}
-\subsection{Method \code{get_weights()}}{
-Get the weight matrix of the layer.
+\if{html}{\out{<a id="method-get_params"></a>}}
+\if{latex}{\out{\hypertarget{method-get_params}{}}}
+\subsection{Method \code{get_params()}}{
+Get the weight matrix and bias of the layer.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Layer$get_weights()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Layer$get_params()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
@@ -132,18 +147,20 @@ Get the weight matrix of the layer.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-set_weights"></a>}}
-\if{latex}{\out{\hypertarget{method-set_weights}{}}}
-\subsection{Method \code{set_weights()}}{
+\if{html}{\out{<a id="method-set_params"></a>}}
+\if{latex}{\out{\hypertarget{method-set_params}{}}}
+\subsection{Method \code{set_params()}}{
 Set/overwrite the weight matrix of the layer.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Layer$set_weights(weight_mat)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Layer$set_params(weight_mat, bias_vec = NULL)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{weight_mat}}{\code{matrix} with numeric entries.}
+
+\item{\code{bias_vec}}{\code{vector} with numeric entries.}
 }
 \if{html}{\out{</div>}}
 }
@@ -154,13 +171,30 @@ Set/overwrite the weight matrix of the layer.
 \subsection{Method \code{set_input()}}{
 Set/overwrite the input data of the layer.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Layer$set_input(input_data)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Layer$set_input(a_prev)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{input_data}}{\code{matrix} with numeric entries.}
+\item{\code{a_prev}}{\code{matrix} with numeric entries.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-update_params"></a>}}
+\if{latex}{\out{\hypertarget{method-update_params}{}}}
+\subsection{Method \code{update_params()}}{
+Update weights and biases after backward pass.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Layer$update_params(learning_rate)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{learning_rate}}{\code{numeric}: value between 0 and 1 that governs the sensitivity towards the derivatives.}
 }
 \if{html}{\out{</div>}}
 }

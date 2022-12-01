@@ -5,12 +5,14 @@
 \title{Neural Net}
 \value{
 \verb{matrix<numeric>} A matrix with predictions from the network for each datapoint in input_data
+
+\code{numeric} The loss over the complete input_data
 }
 \description{
 The user interface for setting up, training and generating forecasts from a simple neural net.
 }
 \details{
-The training algorithm is speed-up by implementing the matrix form of the backpropagation algorithm by \href{https://doi.org/10.48550/arXiv.2107.09384}{Ostwald and Usee (2021)}.
+The training algorithm is speed-up by making use of the matrices instead of loops.
 }
 \examples{
 
@@ -23,8 +25,8 @@ list(number_of_nodes = 3, activation_fun = "relu", random_init = NULL),
 list(number_of_nodes = 1, activation_fun = "sigmoid", random_init = NULL)
 )
 ANN <- Network$new(cost_fun = "cross_entropy", layer_config = layer_config,
-                   input_data = matrix(runif(24), ncol = 6, nrow = 4),
-                   output_data = as.matrix(c(1,0,0,1)))
+                   input_data = matrix(runif(24), ncol = 4, nrow = 6),
+                   output_data = t(c(1,0,0,1)))
 
 }
 \section{Methods}{
@@ -32,10 +34,14 @@ ANN <- Network$new(cost_fun = "cross_entropy", layer_config = layer_config,
 \itemize{
 \item \href{#method-new}{\code{Network$new()}}
 \item \href{#method-calculate}{\code{Network$calculate()}}
-\item \href{#method-get_all_weights}{\code{Network$get_all_weights()}}
+\item \href{#method-calculate_loss}{\code{Network$calculate_loss()}}
+\item \href{#method-get_all_params}{\code{Network$get_all_params()}}
+\item \href{#method-get_all_derivatives}{\code{Network$get_all_derivatives()}}
+\item \href{#method-set_all_params}{\code{Network$set_all_params()}}
 \item \href{#method-set_input_data}{\code{Network$set_input_data()}}
 \item \href{#method-set_output_data}{\code{Network$set_output_data()}}
 \item \href{#method-train}{\code{Network$train()}}
+\item \href{#method-backward_pass}{\code{Network$backward_pass()}}
 \item \href{#method-clone}{\code{Network$clone()}}
 }
 }
@@ -56,9 +62,9 @@ Initialize a new class instance.
 \item{\code{layer_config}}{\code{list} Defines the parametrization of each desired layer, except for the input_layer (which does not need to be parameterized).
 Therefore it is of length \code{L-1} with \code{L} being the number of all layers. Each list itself is a list, containing the input arguments of \link[=Layer]{Layer$new()}. See the example for more details.}
 
-\item{\code{input_data}}{\verb{matrix<numeric>} The input data to be used for classification/regression. Each column corresponds to a different feature and each row corresponds to a different observation.}
+\item{\code{input_data}}{\verb{matrix<numeric>} The input data to be used for classification/regression. Each row corresponds to a different feature and each column corresponds to a different observation.}
 
-\item{\code{output_data}}{\verb{matrix<numeric>} The labels (encoded as numerics) or targets to be used for classification/regression. Each row corresponds to a different observation.}
+\item{\code{output_data}}{\verb{matrix<numeric>} The labels (encoded as numerics) or targets to be used for classification/regression. Each column corresponds to a different observation.}
 }
 \if{html}{\out{</div>}}
 }
@@ -72,8 +78,8 @@ list(number_of_nodes = 3, activation_fun = "relu", random_init = NULL),
 list(number_of_nodes = 1, activation_fun = "sigmoid", random_init = NULL)
 )
 ANN <- Network$new(cost_fun = "cross_entropy", layer_config = layer_config,
-                   input_data = matrix(runif(24), ncol = 6, nrow = 4),
-                   output_data = as.matrix(c(1,0,0,1)))
+                   input_data = matrix(runif(24), ncol = 4, nrow = 6),
+                   output_data = t(c(1,0,0,1)))
 
 }
 \if{html}{\out{</div>}}
@@ -92,17 +98,70 @@ Calculate the output of the network for the complete input_data
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-get_all_weights"></a>}}
-\if{latex}{\out{\hypertarget{method-get_all_weights}{}}}
-\subsection{Method \code{get_all_weights()}}{
-Get the weight matrices of all layers.
+\if{html}{\out{<a id="method-calculate_loss"></a>}}
+\if{latex}{\out{\hypertarget{method-calculate_loss}{}}}
+\subsection{Method \code{calculate_loss()}}{
+Calculate the loss for the complete input_data
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Network$get_all_weights()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Network$calculate_loss()}\if{html}{\out{</div>}}
 }
 
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-get_all_params"></a>}}
+\if{latex}{\out{\hypertarget{method-get_all_params}{}}}
+\subsection{Method \code{get_all_params()}}{
+Get the parameters of all layers.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Network$get_all_params(as_vector = FALSE)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{as_vector}}{\code{logical} Should the result be written as one long vector?}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
-\verb{list<matrix<numeric>>} A list, containing the weight matrices of all layers. The first element will always
-be \code{NULL}, because it corresponds to the input layer.
+A list or vector, containing the parameters of all layers
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-get_all_derivatives"></a>}}
+\if{latex}{\out{\hypertarget{method-get_all_derivatives}{}}}
+\subsection{Method \code{get_all_derivatives()}}{
+Get the derivatives of all layers.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Network$get_all_derivatives(as_vector = FALSE)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{as_vector}}{\code{logical} Should the result be written as one long vector?}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+A list or vector, containing the parameters of all layers
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-set_all_params"></a>}}
+\if{latex}{\out{\hypertarget{method-set_all_params}{}}}
+\subsection{Method \code{set_all_params()}}{
+Set/overwrite the weights and biases for each layer
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Network$set_all_params(param_list)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{param_list}}{\verb{list<matrix<numeric>>} A list consisting of lists (weights = ..., bias = ...) for each layer.}
+}
+\if{html}{\out{</div>}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -169,6 +228,16 @@ after a set of \code{batch_size} observations is processed.}
 \verb{vector<numeric>} The value of the cost function BEFORE each epoch, so the first element corresponds to the
 randomly initiolized model.
 }
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-backward_pass"></a>}}
+\if{latex}{\out{\hypertarget{method-backward_pass}{}}}
+\subsection{Method \code{backward_pass()}}{
+performs one backward pass that updates the derivatives in each layer.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Network$backward_pass()}\if{html}{\out{</div>}}
+}
+
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-clone"></a>}}
