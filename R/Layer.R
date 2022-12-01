@@ -132,8 +132,7 @@ Layer <- R6::R6Class(
     # @formatter:off
     #' @description Calculate the derivative of the current layer wrt to its weights.
     #'
-    #' @param w_times_delta `matrix<numeric>` either an output of the `backward_pass()` method of the next layer, or the
-    #' gradient of the cost function (if the current layer is the output layer).
+    #' @param da `matrix<numeric>`: derivative of the cost function wrt the activations of the next layer..
     #'
     #' @return `list<matrix<numeric>>` A list with two elements:
     #' * `derivative`: The derivative for the weighting matrix.
@@ -198,6 +197,8 @@ Layer <- R6::R6Class(
 
     # @formatter:off
     #' @description Update weights and biases after backward pass.
+    #'
+    #' @param learning_rate `numeric`: value between 0 and 1 that governs the sensitivity towards the derivatives.
     # @formatter:on
     update_params = function(learning_rate) {
       private$weights <- private$weights - learning_rate * private$dw
