@@ -70,7 +70,7 @@ Network <- R6::R6Class(
     #' )
     #' ANN <- Network$new(cost_fun = "cross_entropy", layer_config = layer_config,
     #'                    input_data = matrix(runif(24), ncol = 4, nrow = 6),
-    #'                    output_data = as.matrix(c(1,0,0,1), nrow = 1))
+    #'                    output_data = t(c(1,0,0,1)))
     #'
     #' @return `Network`: The class instance. Invisibly, for chaining.
     # @formatter:on
