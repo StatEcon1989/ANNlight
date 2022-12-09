@@ -11,7 +11,7 @@
 #' @return `numeric`: The normalized L2-distance between the calculated/approximated derivatives.
 #' @export
 check_gradient <- function(network, epsilon = 1e-7) {
-  params <- ANN$get_all_params(FALSE)
+  params <- network$get_all_params(FALSE)
   list <- utils::as.relistable(params)
   params <- unlist(params)
   # calculate one forward and one backward pass to ensure matching parameters and derivatives
@@ -27,7 +27,7 @@ check_gradient <- function(network, epsilon = 1e-7) {
     params_up[i] <- params_up[i] + epsilon
     params_dn[i] <- params_dn[i] - epsilon
     network$set_all_params(utils::relist(params_up, skeleton = list))
-    loss_up[i] <- ANN$calculate_loss()
+    loss_up[i] <- network$calculate_loss()
     network$set_all_params(utils::relist(params_dn, skeleton = list))
     loss_dn[i] <- network$calculate_loss()
   }
