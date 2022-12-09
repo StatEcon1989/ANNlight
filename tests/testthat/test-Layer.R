@@ -1,7 +1,6 @@
 test_that("test Layer", {
   # initialize
   ### INPUT LAYER FUNCTIONALITIES
-  rm(list=ls()); devtools::load_all()
   input <- matrix(1:8, nrow = 2, ncol = 4)
   input_layer <- Layer$new(number_of_nodes = 2, activation_fun = "identity", prior_layer = NULL, a_prev = input, random_init = list(weights = diag(2), bias = c(0, 0)))
   # should be null for input layer
