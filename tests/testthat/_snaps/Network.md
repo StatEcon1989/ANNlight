@@ -45,5 +45,5 @@
     Warning <simpleWarning>
       The normalized distance between the approximated and calculated derivatives is quite large, indicating a wrong implementation!
     Output
-      [1] 0.3431376
+      [1] 0.004225051
 
