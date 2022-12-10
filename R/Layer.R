@@ -6,18 +6,24 @@
 Layer <- R6::R6Class(
   classname = "Layer",
   private = list(
-    # `logical` for including constant. For now, will always be set to true during initialization.
-    bias = NULL,
+    # `matrix<numeric>` the cached activations of dimension 'nodes in layer' x 'number of observations'
+    a = NULL,
     # `matrix<numeric>` if input layer, the data is stored here.
-    input_data = NULL,
-    # `logical` that stores the information whether the layer is an input layer or not.
-    input_layer = FALSE,
+    a_prev = NULL,
+    # `matrix<numeric>` the cached score of dimension 'nodes in layer' x 'number of observations'
+    z = NULL,
     # `integer` number of nodes in the layer (what did you expect?)
     number_of_nodes = NULL,
     # `Layer` the complete, previous layer
     prior_layer = NULL,
-    # `matrix<numeric>` the weighting matrix, (optionally) including a column for the bias
+    # `matrix<numeric>` the weighting matrix of dimension 'nodes in layer' x 'nodes in previous layer'
     weights = NULL,
+    # `matrix<numeric>` the bias vector/matrix of dimenstion 'nodes in layer' x 1
+    bias = NULL,
+    # `matrix<numeric>` the derivative w.r.t. the weighting matrix of dimension 'nodes in layer' x 'nodes in previous layer'
+    dw = NULL,
+    # `matrix<numeric>` the derivative w.r.t. the bias vector/matrix of dimenstion 'nodes in layer' x 1
+    db = NULL,
     # `function` with input argument `z`
     activation_fun = NULL,
     # `function` with input argument `z`
@@ -67,8 +73,9 @@ Layer <- R6::R6Class(
     #' @param number_of_nodes `integer` that specifies the number of nodes in the layer.
     #' @param activation_fun `character` that contains the activation function to be used. See details.
     #' @param prior_layer `Layer` in case of a hidden or output layer, the previous layer.
-    #' @param input_data `matrix<numeric>` in case of the layer being the input layer, a`matrix` with numeric entries that contains the input_data.
-    #' @param random_init `integer`: Initializes all weights and biases with this value. If `NULL` assigns random values between -0.1 and 0.1.
+    #' @param a_prev `matrix<numeric>` in case of the layer being the input layer, a`matrix` with numeric entries that contains the input_data.
+    #' @param random_init `list<matrix/vector>`: If `NULL` initializesthe weights with random N(0, 0.01) values and the bias with zeros.
+    #' If a list with elements `weights` and `bias` (correct dimensions) is given, uses those values for initialization.
     #'
     #' @details Denote `a`the output of the activation function and `z` its input. Currently, the following activation functions are supported:
     #' * `relu`: \eqn{a = max(0,z)}
@@ -80,29 +87,32 @@ Layer <- R6::R6Class(
     #'
     #' @return `Layer`: The class instance. Invisibly, for chaining.
     # @formatter:on
-    initialize = function(number_of_nodes, activation_fun, prior_layer = NULL, input_data = NULL, random_init = NULL) {
-      if (is.null(input_data)) {
+    initialize = function(number_of_nodes, activation_fun, prior_layer = NULL, a_prev = NULL, random_init = NULL) {
+
+      if (!is.null(prior_layer)) {
         private$prior_layer <- prior_layer
-        stopifnot("Must contain at least 1 node!" = number_of_nodes>=1)
-        private$number_of_nodes <- as.integer(number_of_nodes)
-        private$bias <- TRUE
-        if (is.null(random_init)) {
-          private$weights <- matrix(
-            runif(private$number_of_nodes * private$prior_layer$get_number_of_nodes(), min = -1, max = 1),
-            nrow = private$number_of_nodes, ncol = private$prior_layer$get_number_of_nodes()
-          )
-          if (private$bias) private$weights <- cbind(runif(private$number_of_nodes, min = -1e-1, max = 1e-1), private$weights)
-        } else {
-          private$weights <- matrix(data = random_init, nrow = private$number_of_nodes, ncol = private$prior_layer$get_number_of_nodes() + private$bias)
-        }
-        private$set_activation_fun(tolower(activation_fun))
+        nodes_prior_layer <- prior_layer$get_number_of_nodes()
       } else {
-        # number of nodes is determined by number of features
-        private$number_of_nodes <- ncol(input_data)
-        private$input_data <- input_data
-        # identify input layer
-        private$input_layer <- TRUE
+        stopifnot("Must provide either 'prior_layer' or 'a_prev'!" = !is.null(a_prev))
+        private$a_prev <- a_prev
+        nodes_prior_layer <- nrow(a_prev)
       }
+      stopifnot("Must contain at least 1 node!" = number_of_nodes >= 1)
+      private$number_of_nodes <- as.integer(number_of_nodes)
+      if (is.null(random_init)) {
+        private$weights <- matrix(
+          data = rnorm(private$number_of_nodes * nodes_prior_layer),
+          nrow = private$number_of_nodes, ncol = nodes_prior_layer
+        ) * 0.01
+        private$bias <- rep(0, private$number_of_nodes)
+      } else {
+        if (!all.equal(dim(random_init$weights), c(private$number_of_nodes, nodes_prior_layer)) | length(random_init$bias) != private$number_of_nodes) {
+          stop("Wrong dimensions in initialization values!")
+        }
+        private$weights <- random_init$weights
+        private$bias <- random_init$bias
+      }
+      private$set_activation_fun(tolower(activation_fun))
       return(invisible(self))
     },
 
@@ -111,40 +121,40 @@ Layer <- R6::R6Class(
     #'
     #' @return `matrix<numeric>` Either the input- (for an input layer) or the output of the activation function.
     # @formatter:on
-    calc_layer = function() {
-      if (!private$input_layer) {
-        x <- private$prior_layer$calc_layer()
-        private$input_data <- x
-        if (private$bias) x <- rbind(x, 1)
-        result <- private$activation_fun(private$weights %*% x)
-        return(result)
-      } else {
-        # only return input data
-        return(t(private$input_data))
+    forward_pass = function() {
+      if (!is.null(private$prior_layer)) {
+        private$a_prev <- private$prior_layer$forward_pass()
       }
+      private$z <- private$weights %*% private$a_prev + matrix(private$bias, nrow = length(private$bias), ncol = ncol(private$a_prev))
+      private$a <- private$activation_fun(private$z)
+      return(private$a)
     },
     # @formatter:off
     #' @description Calculate the derivative of the current layer wrt to its weights.
     #'
-    #' @param w_times_delta `matrix<numeric>` either an output of the `calc_derivative()` method of the next layer, or the
-    #' gradient of the cost function (if the current layer is the output layer).
+    #' @param da `matrix<numeric>`: derivative of the cost function wrt the activations of the next layer..
     #'
     #' @return `list<matrix<numeric>>` A list with two elements:
     #' * `derivative`: The derivative for the weighting matrix.
     #' * `w_times_delta`: A matrix product needed for the calculation of the previous layer.
     # @formatter:on
-    calc_derivative = function(w_times_delta = 1) {
-      if (!private$input_layer) {
-        x <- private$input_data
-        if (private$bias) x <- rbind(x, 1)
-        delta <- w_times_delta * private$activation_fun_deriv(private$weights %*% x)
-        derivative <- delta %*% t(x)
-        w_times_delta <- t(private$weights[, 1:private$prior_layer$get_number_of_nodes(), drop = FALSE]) %*% delta
-        return(list(w_times_delta = w_times_delta, derivative = derivative))
-      } else {
-        # no derivative for input layer
-        return(NULL)
+    backward_pass = function(da = 1) {
+      dz <- da * private$activation_fun_deriv(private$z)
+      private$dw <- dz %*% t(private$a_prev)
+      private$db <- rowSums(dz)
+      if (!is.null(private$prior_layer)) {
+        da <- t(private$weights) %*% dz
+        private$prior_layer$backward_pass(da = da)
       }
+    },
+
+    # @formatter:off
+    #' @description Get all cached derivatives.
+    #'
+    #' @return `list` of derivatives.
+    # @formatter:on
+    get_derivatives = function() {
+      return(list(dw = private$dw, db = private$db))
     },
 
     # @formatter:off
@@ -157,32 +167,42 @@ Layer <- R6::R6Class(
     },
 
     # @formatter:off
-    #' @description Get the weight matrix of the layer.
+    #' @description Get the weight matrix and bias of the layer.
     #'
     #' @return `matrix<numeric>` The weights of the current layer.
     # @formatter:on
-    get_weights = function() {
-      if (!private$input_layer) {
-        return(private$weights)
-      } else {
-        return(NULL)
-      }
+    get_params = function() {
+      return(list(weights = private$weights, bias = private$bias))
     },
 
     # @formatter:off
     #' @description Set/overwrite the weight matrix of the layer.
     #' @param weight_mat `matrix` with numeric entries.
+    #' @param bias_vec `vector` with numeric entries.
     # @formatter:on
-    set_weights = function(weight_mat) {
+    set_params = function(weight_mat, bias_vec = NULL) {
       private$weights <- weight_mat
+      if (!is.null(bias_vec)) {
+        private$bias <- bias_vec
+      }
     },
 
     # @formatter:off
     #' @description Set/overwrite the input data of the layer.
-    #' @param input_data `matrix` with numeric entries.
+    #' @param a_prev `matrix` with numeric entries.
     # @formatter:on
-    set_input = function(input_data) {
-      private$input_data <- input_data
+    set_input = function(a_prev) {
+      private$a_prev <- a_prev
+    },
+
+    # @formatter:off
+    #' @description Update weights and biases after backward pass.
+    #'
+    #' @param learning_rate `numeric`: value between 0 and 1 that governs the sensitivity towards the derivatives.
+    # @formatter:on
+    update_params = function(learning_rate) {
+      private$weights <- private$weights - learning_rate * private$dw
+      private$bias <- private$bias - learning_rate * private$db
     }
   )
 )

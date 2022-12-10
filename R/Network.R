@@ -2,7 +2,7 @@
 #'
 #' @description The user interface for setting up, training and generating forecasts from a simple neural net.
 #'
-#' @details The training algorithm is speed-up by implementing the matrix form of the backpropagation algorithm by [Ostwald and Usee (2021)](https://doi.org/10.48550/arXiv.2107.09384).
+#' @details The training algorithm is speed-up by making use of the matrices instead of loops.
 #'
 #'@export
 Network <- R6::R6Class(
@@ -22,9 +22,9 @@ Network <- R6::R6Class(
     output_data = NULL,
     # predicted output, stored for efficiency
     y_hat = NULL,
-    # function that calculates the output for a single data_point
+    # function that calculates the output
     forward_pass = function() {
-      private$layers[[private$number_of_layers]]$calc_layer()
+      return(private$layers[[private$number_of_layers]]$forward_pass())
     },
     # function to set both the cost function and its derivative
     set_cost_fun = function(cost_fun) {
@@ -33,22 +33,20 @@ Network <- R6::R6Class(
 
                private$cost_fun <- function(output_data) {
                  private$y_hat <- private$forward_pass()
-                 sum((private$y_hat - output_data)^2) / 2
+                 mean((private$y_hat - output_data)^2) / 2
                }
 
-               private$cost_fun_deriv <- function(output_data) private$y_hat - output_data
+               private$cost_fun_deriv <- function(output_data) (private$y_hat - output_data)
              },
              cross_entropy = {
 
                private$cost_fun <- function(output_data) {
                  private$y_hat <- private$forward_pass()
-                 -sum(output_data * log(private$y_hat) + (1 - output_data) * log(1 - private$y_hat))
+                 -mean(output_data * log(private$y_hat) + (1 - output_data) * log(1 - private$y_hat))
                }
 
                private$cost_fun_deriv <- function(output_data) {
-                 (private$y_hat - output_data) /
-                   (1 - private$y_hat) /
-                   private$y_hat
+                 (1 - output_data) / (1 - private$y_hat) - output_data / private$y_hat
                }
 
              },
@@ -62,8 +60,8 @@ Network <- R6::R6Class(
     #' @param cost_fun `character` Declare the cost function to be used. Currently implemented: `quadratic` and `cross_entropy` (only for classification).
     #' @param layer_config `list` Defines the parametrization of each desired layer, except for the input_layer (which does not need to be parameterized).
     #' Therefore it is of length `L-1` with `L` being the number of all layers. Each list itself is a list, containing the input arguments of [Layer$new()][Layer]. See the example for more details.
-    #' @param input_data `matrix<numeric>` The input data to be used for classification/regression. Each column corresponds to a different feature and each row corresponds to a different observation.
-    #' @param output_data `matrix<numeric>` The labels (encoded as numerics) or targets to be used for classification/regression. Each row corresponds to a different observation.
+    #' @param input_data `matrix<numeric>` The input data to be used for classification/regression. Each row corresponds to a different feature and each column corresponds to a different observation.
+    #' @param output_data `matrix<numeric>` The labels (encoded as numerics) or targets to be used for classification/regression. Each column corresponds to a different observation.
     #'
     #' @examples
     #' layer_config <- list(
@@ -71,25 +69,27 @@ Network <- R6::R6Class(
     #' list(number_of_nodes = 1, activation_fun = "sigmoid", random_init = NULL)
     #' )
     #' ANN <- Network$new(cost_fun = "cross_entropy", layer_config = layer_config,
-    #'                    input_data = matrix(runif(24), ncol = 6, nrow = 4),
-    #'                    output_data = as.matrix(c(1,0,0,1)))
+    #'                    input_data = matrix(runif(24), ncol = 4, nrow = 6),
+    #'                    output_data = t(c(1,0,0,1)))
     #'
     #' @return `Network`: The class instance. Invisibly, for chaining.
     # @formatter:on
     initialize = function(cost_fun = "quadratic", layer_config, input_data, output_data) {
+      stopifnot("Unequal number of observations in 'input_data' and 'output_data'!" = ncol(input_data) == ncol(output_data))
       # set cost function
       private$set_cost_fun(tolower(cost_fun))
       # create the layers
       stopifnot('input_data must be supplied to set the input layer!' = !missing(input_data))
       private$input_data <- input_data
-      private$layers[[1]] <- Layer$new(input_data = input_data)
-      for (i in 1:length(layer_config)) {
-        private$layers[[i + 1]] <- Layer$new(number_of_nodes = layer_config[[i]]$number_of_nodes,
-                                             activation_fun = layer_config[[i]]$activation_fun, prior_layer = private$layers[[i]], random_init = layer_config[[i]]$random_init)
+      private$layers[[1]] <- Layer$new(a_prev = input_data, number_of_nodes = layer_config[[1]]$number_of_nodes,
+                                       activation_fun = layer_config[[1]]$activation_fun, prior_layer = NULL, random_init = layer_config[[1]]$random_init)
+      for (i in 2:length(layer_config)) {
+        private$layers[[i]] <- Layer$new(number_of_nodes = layer_config[[i]]$number_of_nodes,
+                                         activation_fun = layer_config[[i]]$activation_fun, prior_layer = private$layers[[i - 1]], random_init = layer_config[[i]]$random_init)
       }
       private$number_of_layers <- length(private$layers)
       if (!is.null(output_data)) {
-        private$output_data <- self$set_output_data(as.matrix(output_data))
+        private$output_data <- self$set_output_data(output_data)
       }
       return(invisible(self))
     },
@@ -106,13 +106,57 @@ Network <- R6::R6Class(
     },
 
     # @formatter:off
-    #' @description Get the weight matrices of all layers.
+    #' @description Calculate the loss for the complete input_data
     #'
-    #' @return `list<matrix<numeric>>` A list, containing the weight matrices of all layers. The first element will always
-    #' be `NULL`, because it corresponds to the input layer.
+    #' @returns `numeric` The loss over the complete input_data
     # @formatter:on
-    get_all_weights = function() {
-      lapply(private$layers, FUN = function(x) x$get_weights())
+    calculate_loss = function() {
+      return(private$cost_fun(private$output_data))
+    },
+
+    # @formatter:off
+    #' @description Get the parameters of all layers.
+    #'
+    #' @param as_vector `logical` Should the result be written as one long vector?
+    #'
+    #' @return A list or vector, containing the parameters of all layers
+    # @formatter:on
+    get_all_params = function(as_vector = FALSE) {
+      params_list <- lapply(private$layers, FUN = function(x) x$get_params())
+      names(params_list) <- 1:private$number_of_layers
+      if (as_vector) {
+        return(unlist(params_list))
+      } else {
+        return(params_list)
+      }
+    },
+
+    # @formatter:off
+    #' @description Get the derivatives of all layers.
+    #'
+    #' @param as_vector `logical` Should the result be written as one long vector?
+    #'
+    #' @return A list or vector, containing the parameters of all layers
+    # @formatter:on
+    get_all_derivatives = function(as_vector = FALSE) {
+      params_list <- lapply(private$layers, FUN = function(x) x$get_derivatives())
+      names(params_list) <- 1:private$number_of_layers
+      if (as_vector) {
+        return(unlist(params_list))
+      } else {
+        return(params_list)
+      }
+    },
+
+    # @formatter:off
+    #' @description Set/overwrite the weights and biases for each layer
+    #'
+    #' @param param_list `list<matrix<numeric>>` A list consisting of lists (weights = ..., bias = ...) for each layer.
+    # @formatter:on
+    set_all_params = function(param_list) {
+      for(i in 1: private$number_of_layers){
+        private$layers[[i]]$set_params(weight_mat = param_list[[i]]$weights, bias_vec = param_list[[i]]$bias)
+      }
     },
 
     # @formatter:off
@@ -130,7 +174,7 @@ Network <- R6::R6Class(
     #' @param output_data `matrix<numeric>`
     # @formatter:on
     set_output_data = function(output_data) {
-      private$output_data <- t(output_data)
+      private$output_data <- output_data
     },
 
     # @formatter:off
@@ -150,37 +194,38 @@ Network <- R6::R6Class(
     #' randomly initiolized model.
     # @formatter:on
     train = function(batch_size = NULL, epochs = 1e4, learning_rate = 0.1) {
-      n <- nrow(private$input_data)
+      m <- ncol(private$input_data)
       if (is.null(batch_size)) {
-        batch_size <- n
-        batch_list <- list(1:n)
+        batch_size <- m
+        batch_list <- list(1:m)
       }else {
-        batch_list <- split(1:n, ceiling(seq_along(1:n) / batch_size))
+        batch_list <- split(1:m, ceiling(seq_along(1:m) / batch_size))
       }
-      # initialize derivatives
-      derivatives <- vector(mode = "list", length = private$number_of_layers)
-      deriv_list <- vector(mode = "list", length = private$number_of_layers + 1)
-      cost <- rep(0, epochs)
+      loss <- rep(0, epochs)
       # iterate fpr each epoch
       for (e in 1:epochs) {
         # run the batch
         for (batch in batch_list) {
           # setting the input
-          private$layers[[1]]$set_input(private$input_data[batch, , drop = FALSE])
-          cost[e] <- cost[e] + private$cost_fun(private$output_data[, batch, drop = FALSE])
-          #calculate the derivative for each wheight matrix
-          deriv_list[[private$number_of_layers + 1]] <- list(w_times_delta = private$cost_fun_deriv(output_data = private$output_data[, batch, drop = FALSE]), derivative = NULL)
-          for (l in private$number_of_layers:2) {
-            deriv_list[[l]] <- private$layers[[l]]$calc_derivative(w_times_delta = deriv_list[[l + 1]]$w_times_delta)
-            derivatives[[l]] <- deriv_list[[l]]$derivative
-          }
+          private$layers[[1]]$set_input(private$input_data[, batch, drop = FALSE])
+          # calculating cost and forward pass simultaneously
+          loss[e] <- loss[e] + private$cost_fun(private$output_data[, batch, drop = FALSE])
+          # calculate the backward pass recursively
+          private$layers[[private$number_of_layers]]$backward_pass(da = private$cost_fun_deriv(output_data = private$output_data[, batch, drop = FALSE])/batch_size)
           # update the weight matrix
-          for (l in length(private$layers):2) {
-            private$layers[[l]]$set_weights(private$layers[[l]]$get_weights() - learning_rate * derivatives[[l]] / batch_size)
+          for (l in length(private$layers):1) {
+            private$layers[[l]]$update_params(learning_rate = learning_rate)
           }
         }
       }
-      return(cost)
+      return(loss)
+    },
+
+    # @formatter:off
+    #' @description performs one backward pass that updates the derivatives in each layer.
+    # @formatter:on
+    backward_pass = function(){
+      private$layers[[private$number_of_layers]]$backward_pass(da = private$cost_fun_deriv(output_data = private$output_data)/ncol(private$input_data))
     }
   )
 
